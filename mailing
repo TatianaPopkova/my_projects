@@ -1,0 +1,172 @@
+import pymysql as pms
+import openpyxl
+import datetime
+import mimetypes  
+from email import encoders   
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase 
+from email.mime.multipart import MIMEMultipart
+from email.header import Header
+import smtplib
+import vertica_python as vp
+import os
+import pandas as pd
+
+def get_datas(sql):
+    # Функция, которая передает данные экспорта SQL
+    # Установить соединение с базой данных
+    CONN_INFO_VERTICA = {
+                        'host': '',
+                        'user': 'tpopkova',
+                        'password': ''
+                        }
+    conn = vp.connect(**CONN_INFO_VERTICA)
+    # Создание объекта курсора с помощью метода курсора ()
+    cur = conn.cursor()
+    # Выполнение SQL с использованием метода execute ()
+    cur.execute(sql)
+    # Получить необходимые данные
+    datas = cur.fetchall()
+    # Закрыть соединение
+    cur.close()
+    # Возврат необходимых данных
+    return datas
+
+def get_fields(sql):
+    # Функция, которая передается в полях экспорта SQL
+    CONN_INFO_VERTICA = {
+                        'host': '',
+                        'user': 'tpopkova',
+                        'password': ''
+                        }
+    conn = vp.connect(**CONN_INFO_VERTICA)
+    cur = conn.cursor()
+    cur.execute(sql)
+    # Получить необходимые имена полей
+    fields = cur.description
+    cur.close()
+    return fields
+
+def get_excel(data, field, file):
+    # Функция, которая записывает данные и имена полей в Excel
+    # Создать новый объект книги
+    new = openpyxl.Workbook()
+    # Активировать новый лист
+    sheet = new.active
+    # Назовите лист
+    sheet.title = 'Отображение данных'
+    # Запишите имя поля в первую строку Excel, поскольку список форматов полей содержит списки, а первый элемент каждого списка - это имя поля.
+    for col in range(len(field)):
+        #row представляет количество строк, column представляет количество столбцов, а value представляет значение, введенное в ячейку. Количество строк и количество столбцов начинаются с 1. Это отличается от python. Обратите внимание, что
+        _ = sheet.cell(row=1, column=col+1, value=u'%s' % field[col][0])
+     # Записать данные в каждую ячейку Excel
+    for row in range(len(data)):
+        for col in range(len(field)):
+            # Потому что в первой строке записывается имя поля, поэтому начинайте запись со второй строки
+            _ = sheet.cell(row=row+2, column=col + 1, value=u'%s' % data[row][col])
+            # Сохраните сгенерированный Excel, этот шаг необходим
+    newworkbook = new.save(file)
+    # Возврат к сгенерированному Excel
+    return newworkbook
+
+def getYesterday():
+    # Функция для получения формата строки вчерашней даты
+    # Получите сегодняшнюю дату
+    today = datetime.date.today()
+    # Получить данные формата даты за один день
+    oneday = datetime.timedelta(days=1)
+    # Вчера равно сегодня минус один день
+    yesterday = today - oneday
+    # Получить отформатированную строку вчерашней даты
+    yesterdaystr = yesterday.strftime('%Y-%m-%d')
+    # Возвращает вчерашнюю строку
+    return yesterdaystr
+
+
+        
+def send_email(addr_to, msg_subj, msg_text, files):
+    addr_from = "%@gmail.com"    # Отправитель
+    password  = ""                                  # Пароль
+
+    msg = MIMEMultipart()                                   # Создаем сообщение
+    msg['From']    = addr_from                              # Адресат
+    msg['To']      = addr_to                                # Получатель
+    msg['Subject'] = msg_subj                               # Тема сообщения
+
+    body = msg_text                                         # Текст сообщения
+    msg.attach(MIMEText(body, 'plain'))                     # Добавляем в сообщение текст
+    for i in files:
+        attach_file(msg, i)  
+    
+    server = smtplib.SMTP('smtp.gmail.com', 587)        # Создаем объект SMTP
+    server.starttls()                                   # Начинаем шифрованный обмен по TLS
+    server.login("%@gmail.com", "")                   # Получаем доступ
+    server.send_message(msg)                            # Отправляем сообщение
+    server.quit()   
+
+def attach_file(msg, filepath):                             # Функция по добавлению конкретного файла к сообщению
+    filename = os.path.basename(filepath)                   # Получаем только имя файла
+    ctype, encoding = mimetypes.guess_type(filepath)        # Определяем тип файла на основе его расширения
+    if ctype is None or encoding is not None:               # Если тип файла не определяется
+        ctype = 'application/octet-stream'                  # Будем использовать общий тип
+    maintype, subtype = ctype.split('/', 1)                 # Получаем тип и подтип
+    with open(filepath, 'rb') as fp:
+        file = MIMEBase(maintype, subtype)              # Используем общий MIME-тип
+        file.set_payload(fp.read())                     # Добавляем содержимое общего типа (полезную нагрузку)
+        fp.close()
+        encoders.encode_base64(file)                    # Содержимое должно кодироваться как Base64
+    file.add_header('Content-Disposition', 'attachment', filename=filename) # Добавляем заголовки
+    msg.attach(file)                                        # Присоединяем файл к сообщению
+    
+    
+def main():
+    print(datetime.datetime.now())
+    sql1 = """select *
+            from dma.delimobil_rent dr
+            where dr."Start" between current_date - interval '4' day and current_date
+                and is_ride = True
+                and Model = 'Polo'
+                and rent_region_en = 'Rostov-on-Don';"""
+    sql2 = """select *
+            from dma.delimobil_rent dr
+            where dr."Start" between current_date - interval '3' day and current_date
+                and is_ride = True
+                and Model = 'Qashqai'
+                and rent_region_en = 'Tula'"""
+    my_sql = [[sql1,'name1'], [sql2, 'name2']]
+    paths = [] #список путей к файлам
+    for my_sql in my_sql:
+        # Генерация данных
+        my_data = get_datas(my_sql[0])
+        # Создать имена полей
+        my_field = get_fields(my_sql[0])
+        # Получить вчерашнюю дату в строковом формате
+        yesterdaystr = getYesterday()
+        # Имя файла
+        my_file_name = my_sql[1]+ '_' + yesterdaystr + '.xlsx'
+        # Путь к файлу
+        file_path = 'C:/Users/tpopkova/' + my_file_name
+        paths.append(file_path)
+        # Создать Excel
+        get_excel(my_data, my_field, file_path)
+
+    my_email_from = "%@gmail.com"
+    my_email_to = "email"
+    # Заголовок электронной почты
+    my_email_Subject = 'Данные за' + yesterdaystr
+    # Тело электронной почты
+    my_email_text = "Уважаемые коллеги,%"
+    # Адрес присоединения
+    my_annex_path = file_path
+    # Имя приложения
+    my_annex_name = my_file_name
+
+    my_sender = "popkova.tatiana.alexandrovna@gmail.com"
+    my_password = ''
+    my_receiver = "popkova.tatiana.alexandrovna@gmail.com" # Список получателей электронной почты
+    # Отправить почту
+    send_email(my_receiver, my_email_Subject, my_email_text, paths)
+    print(datetime.datetime.now())
+
+if __name__ == "__main__":
+    main();
