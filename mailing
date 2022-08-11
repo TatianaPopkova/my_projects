@@ -122,17 +122,9 @@ def attach_file(msg, filepath):                             # Функция п�
 def main():
     print(datetime.datetime.now())
     sql1 = """select *
-            from dma.delimobil_rent dr
-            where dr."Start" between current_date - interval '4' day and current_date
-                and is_ride = True
-                and Model = 'Polo'
-                and rent_region_en = 'Rostov-on-Don';"""
+            from table1"""
     sql2 = """select *
-            from dma.delimobil_rent dr
-            where dr."Start" between current_date - interval '3' day and current_date
-                and is_ride = True
-                and Model = 'Qashqai'
-                and rent_region_en = 'Tula'"""
+            from table2"""
     my_sql = [[sql1,'name1'], [sql2, 'name2']]
     paths = [] #список путей к файлам
     for my_sql in my_sql:
@@ -161,9 +153,9 @@ def main():
     # Имя приложения
     my_annex_name = my_file_name
 
-    my_sender = "popkova.tatiana.alexandrovna@gmail.com"
+    my_sender = "%@gmail.com"
     my_password = ''
-    my_receiver = "popkova.tatiana.alexandrovna@gmail.com" # Список получателей электронной почты
+    my_receiver = "email" # Список получателей электронной почты
     # Отправить почту
     send_email(my_receiver, my_email_Subject, my_email_text, paths)
     print(datetime.datetime.now())
