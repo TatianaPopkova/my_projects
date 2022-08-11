@@ -1,3 +1,5 @@
+# автоматизация ежедневной рассылки отчетов, формирующихся запросом из Vertica
+
 import pymysql as pms
 import openpyxl
 import datetime
